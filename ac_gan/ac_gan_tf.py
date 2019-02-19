@@ -5,18 +5,16 @@ import matplotlib.pyplot as plt
 import matplotlib.gridspec as gridspec
 import os
 
-
 mnist = input_data.read_data_sets('../../MNIST_data', one_hot=True)
 
 mb_size = 32
-X_dim = mnist.train.images.shape[1]
-y_dim = mnist.train.labels.shape[1]
+X_dim = mnist.train.images.shape[1] # (55000, 784)
+y_dim = mnist.train.labels.shape[1] # (55000, 10)
 z_dim = 10
 h_dim = 128
 eps = 1e-8
 lr = 1e-3
 d_steps = 3
-
 
 def plot(samples):
     fig = plt.figure(figsize=(4, 4))
@@ -33,38 +31,42 @@ def plot(samples):
 
     return fig
 
-
 def xavier_init(size):
     in_dim = size[0]
     xavier_stddev = 1. / tf.sqrt(in_dim / 2.)
     return tf.random_normal(shape=size, stddev=xavier_stddev)
 
-
 X = tf.placeholder(tf.float32, shape=[None, X_dim])
 y = tf.placeholder(tf.float32, shape=[None, y_dim])
 z = tf.placeholder(tf.float32, shape=[None, z_dim])
 
-G_W1 = tf.Variable(xavier_init([z_dim + y_dim, h_dim]))
-G_b1 = tf.Variable(tf.zeros(shape=[h_dim]))
-G_W2 = tf.Variable(xavier_init([h_dim, X_dim]))
-G_b2 = tf.Variable(tf.zeros(shape=[X_dim]))
+""" Generator
+    # arguments
+        z: Noise sample
+        c: Label
 
+    # Returns
+        G_prob: Generated image
+"""
+G_W1 = tf.Variable(xavier_init([z_dim + y_dim, h_dim])) # (20, 128)
+G_b1 = tf.Variable(tf.zeros(shape=[h_dim])) # (1, 128)
+G_W2 = tf.Variable(xavier_init([h_dim, X_dim])) # (128, 784)
+G_b2 = tf.Variable(tf.zeros(shape=[X_dim])) # (1, 784)
 
 def generator(z, c):
     inputs = tf.concat(axis=1, values=[z, c])
-    G_h1 = tf.nn.relu(tf.matmul(inputs, G_W1) + G_b1)
-    G_log_prob = tf.matmul(G_h1, G_W2) + G_b2
+    G_h1 = tf.nn.relu(tf.matmul(inputs, G_W1) + G_b1) # (1, 128) = (1, 20) x (20, 128) + (1, 128)
+    G_log_prob = tf.matmul(G_h1, G_W2) + G_b2 # (1, 784) = (1, 128) x (128, 784) + (1, 784)
     G_prob = tf.nn.sigmoid(G_log_prob)
     return G_prob
 
-
+# Discriminator
 D_W1 = tf.Variable(xavier_init([X_dim, h_dim]))
 D_b1 = tf.Variable(tf.zeros(shape=[h_dim]))
 D_W2_gan = tf.Variable(xavier_init([h_dim, 1]))
 D_b2_gan = tf.Variable(tf.zeros(shape=[1]))
 D_W2_aux = tf.Variable(xavier_init([h_dim, y_dim]))
 D_b2_aux = tf.Variable(tf.zeros(shape=[y_dim]))
-
 
 def discriminator(X):
     D_h1 = tf.nn.relu(tf.matmul(X, D_W1) + D_b1)
