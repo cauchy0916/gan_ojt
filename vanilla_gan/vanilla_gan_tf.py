@@ -11,6 +11,7 @@ def xavier_init(size):
     return tf.random_normal(shape=size, stddev=xavier_stddev)
 
 
+# Network Design
 X = tf.placeholder(tf.float32, shape=[None, 784])
 
 D_W1 = tf.Variable(xavier_init([784, 128]))
@@ -21,6 +22,18 @@ D_b2 = tf.Variable(tf.zeros(shape=[1]))
 
 theta_D = [D_W1, D_W2, D_b1, D_b2]
 
+def generator(z):
+    """ GAN generator
+    # Arguments
+        z: 100-dimensional vector, the prior for the G(Z)
+    # Returns
+        G_prob: 786-dimensional vector, which is MNIST image (28x28)
+    """    
+    G_h1 = tf.nn.relu(tf.matmul(z, G_W1) + G_b1) # (1 x 100) x (100 x 128) + (1 x 128)
+    G_log_prob = tf.matmul(G_h1, G_W2) + G_b2 # (1 x 128) x (128 x 784) + (1 x 784)
+    G_prob = tf.nn.sigmoid(G_log_prob)
+
+    return G_prob
 
 Z = tf.placeholder(tf.float32, shape=[None, 100])
 
@@ -32,27 +45,53 @@ G_b2 = tf.Variable(tf.zeros(shape=[784]))
 
 theta_G = [G_W1, G_W2, G_b1, G_b2]
 
-
-def sample_Z(m, n):
-    return np.random.uniform(-1., 1., size=[m, n])
-
-
-def generator(z):
-    G_h1 = tf.nn.relu(tf.matmul(z, G_W1) + G_b1)
-    G_log_prob = tf.matmul(G_h1, G_W2) + G_b2
-    G_prob = tf.nn.sigmoid(G_log_prob)
-
-    return G_prob
-
-
 def discriminator(x):
-    D_h1 = tf.nn.relu(tf.matmul(x, D_W1) + D_b1)
-    D_logit = tf.matmul(D_h1, D_W2) + D_b2
+    """ GAN discriminator
+    # Arguments
+        x: MNIST image
+    # Returns
+        D_prob: Probability of real MNIST image
+    """    
+    D_h1 = tf.nn.relu(tf.matmul(x, D_W1) + D_b1) # (1, 784) x (784, 128) + (1, 128)
+    D_logit = tf.matmul(D_h1, D_W2) + D_b2 # (1, 128) x (128, 1) + (1, 1)
     D_prob = tf.nn.sigmoid(D_logit)
 
     return D_prob, D_logit
 
 
+G_sample = generator(Z) # Generated sample
+D_real, D_logit_real = discriminator(X) # Discriminator output for real sample
+D_fake, D_logit_fake = discriminator(G_sample) # Discriminator output for fake sample, which is from the generator
+
+
+# Loss function
+"""
+# Original Losses:
+D_loss = -tf.reduce_mean(tf.log(D_real) + tf.log(1. - D_fake))
+G_loss = -tf.reduce_mean(tf.log(D_fake))
+
+# Alternative losses:
+D_loss_real = tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(logits=D_logit_real, labels=tf.ones_like(D_logit_real)))
+D_loss_fake = tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(logits=D_logit_fake, labels=tf.zeros_like(D_logit_fake)))
+D_loss = D_loss_real + D_loss_fake
+G_loss = tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(logits=D_logit_fake, labels=tf.ones_like(D_logit_fake)))
+"""
+
+# Take alternative losses
+D_loss_real = tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(logits=D_logit_real, labels=tf.ones_like(D_logit_real)))
+D_loss_fake = tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(logits=D_logit_fake, labels=tf.zeros_like(D_logit_fake)))
+D_loss = D_loss_real + D_loss_fake
+G_loss = tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(logits=D_logit_fake, labels=tf.ones_like(D_logit_fake)))
+
+# Solver
+D_solver = tf.train.AdamOptimizer().minimize(D_loss, var_list=theta_D)
+G_solver = tf.train.AdamOptimizer().minimize(G_loss, var_list=theta_G)
+
+# Uniform prior for G(Z)
+def sample_Z(m, n):
+    return np.random.uniform(-1., 1., size=[m, n])
+
+# Plot
 def plot(samples):
     fig = plt.figure(figsize=(4, 4))
     gs = gridspec.GridSpec(4, 4)
@@ -69,23 +108,6 @@ def plot(samples):
     return fig
 
 
-G_sample = generator(Z)
-D_real, D_logit_real = discriminator(X)
-D_fake, D_logit_fake = discriminator(G_sample)
-
-# D_loss = -tf.reduce_mean(tf.log(D_real) + tf.log(1. - D_fake))
-# G_loss = -tf.reduce_mean(tf.log(D_fake))
-
-# Alternative losses:
-# -------------------
-D_loss_real = tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(logits=D_logit_real, labels=tf.ones_like(D_logit_real)))
-D_loss_fake = tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(logits=D_logit_fake, labels=tf.zeros_like(D_logit_fake)))
-D_loss = D_loss_real + D_loss_fake
-G_loss = tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(logits=D_logit_fake, labels=tf.ones_like(D_logit_fake)))
-
-D_solver = tf.train.AdamOptimizer().minimize(D_loss, var_list=theta_D)
-G_solver = tf.train.AdamOptimizer().minimize(G_loss, var_list=theta_G)
-
 mb_size = 128
 Z_dim = 100
 
@@ -99,7 +121,7 @@ if not os.path.exists('out/'):
 
 i = 0
 
-for it in range(1000000):
+for it in range(10000):
     if it % 1000 == 0:
         samples = sess.run(G_sample, feed_dict={Z: sample_Z(16, Z_dim)})
 
