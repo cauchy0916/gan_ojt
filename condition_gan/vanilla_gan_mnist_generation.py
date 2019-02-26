@@ -21,6 +21,10 @@ z_dim = 100 # Latent space dimension
 target_digit = 4
 
 
+# GPU setting
+gpu_config = tf.ConfigProto()
+gpu_config.gpu_options.allow_growth=True
+
 # Hyper parameters
 batch_size = 128
 n_hidden_D = 128
@@ -71,7 +75,7 @@ def discriminator(x, y):
 def generator(z, y):
     """ Conditional GAN generator
     # Arguments
-        z: Noise vector for the prior for the G(Z)
+        z: Noise vector for the G(Z)
         y: Label
 
     # Returns
@@ -133,7 +137,9 @@ def plot(samples):
 history = {'val_D_loss': [],
            'val_G_loss': []}
 
-sess = tf.Session()
+
+
+sess = tf.Session(config=gpu_config)
 sess.run(tf.global_variables_initializer())
 
 if not os.path.exists('out/'):
@@ -144,7 +150,9 @@ hist = 0
 for i in range(n_epoch):
     # MNIST image generation
     y_samples = np.zeros(shape=[16, y_dim])
-    y_samples[:, target_digit] = 1
+#    y_samples[:, target_digit] = 1
+    for j in range(16):
+        y_samples[j, j%10] = 1    
     samples = sess.run(G_sample, feed_dict={Z: sample_Z(16, z_dim), y: y_samples})
     fig = plot(samples)
     plt.savefig('out/{}.png'.format(str(i).zfill(3)), bbox_inches='tight')
@@ -160,6 +168,7 @@ for i in range(n_epoch):
 
         history['val_D_loss'].append(D_loss_curr)
         history['val_G_loss'].append(G_loss_curr)   
+
 
     # Loss update
     print('Epoch: {}'.format(i))
@@ -183,6 +192,5 @@ sub_G_loss.set_xlabel('Generator Loss')
 sub_D_loss.grid(linestyle='--', color='lavender')
 sub_G_loss.grid(linestyle='--', color='lavender')
  
-plt.show()
 plt.savefig('out/conditional_gan_loss.png')
 plt.close(fig_graph)
