@@ -1,2 +1,2 @@
 # gan_ojt
-Orientation regarding Generative ML (GAN)
+OJT regarding Generative ML (GAN)
